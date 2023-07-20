@@ -16,7 +16,7 @@ namespace SimpleSolitaire.Controller
 		private RectTransform _bottomPanel;
 		[SerializeField]
 		private Animator _settingsPanelAnimator;
-		
+
 		[Header("Ads Components:")]
 		public GameObject AdsBtn;
 		[SerializeField]
@@ -36,8 +36,6 @@ namespace SimpleSolitaire.Controller
 		[Header("Components:")]
 		[SerializeField]
 		private CardLogic _cardLogic;
-		//[SerializeField]
-		//private InterVideoAds _interVideoAdsComponent;
 		[SerializeField]
 		private CongratulationManager _congratManagerComponent;
 		[SerializeField]
@@ -70,6 +68,7 @@ namespace SimpleSolitaire.Controller
 		[Header("Labels:")]
 		[SerializeField]
 		private Text _timeLabel;
+
 		[SerializeField]
 		private Text _scoreLabel;
 		[SerializeField]
@@ -80,6 +79,8 @@ namespace SimpleSolitaire.Controller
 		private Text _scoreWinLabel;
 		[SerializeField]
 		private Text _stepsWinLabel;
+		[SerializeField]
+		private Text _bestTimeWinLabel;
 
 		[Header("Switchers:")]
 		[SerializeField]
@@ -90,18 +91,18 @@ namespace SimpleSolitaire.Controller
 		private SwitchSpriteComponent _orientationSwitcher;
 		[SerializeField]
 		private SwitchSpriteComponent _highlightDraggableSwitcher;
-		
+
 		[Space(5f)]
 		[SerializeField]
 		private TableLayoutGroup _settingsRef;
-		
+
 		[Header("Settings:")]
 		public bool UseLoadLastGameOption;
 
 		public int TimeCount => _timeCount;
 		public int StepCount => _stepCount;
 		public int ScoreCount => _scoreCount;
-		
+
 		private readonly string _appearTrigger = "Appear";
 		private readonly string _disappearTrigger = "Disappear";
 		private readonly string _bestScoreKey = "WinBestScore";
@@ -110,15 +111,19 @@ namespace SimpleSolitaire.Controller
 		private int _timeCount;
 		private int _stepCount;
 		private int _scoreCount;
+		private int _clearTimeCount;
+		private int _bestTimeCount;
 		private Coroutine _timeCoroutine;
 		private AudioController _audioController;
-		
+
 		private RewardAdsType _currentAdsType = RewardAdsType.None;
 
 		private bool _highlightDraggableEnable;
 		private bool _soundEnable;
 		private bool _autoCompleteEnable;
 		private bool _isBarActive;
+
+		private string _bestTimeToString;
 
 		private void Awake()
 		{
@@ -135,9 +140,9 @@ namespace SimpleSolitaire.Controller
 			_soundEnable = true;
 			_autoCompleteEnable = true;
 			_isBarActive = true;
-			
+
 			//InterVideoAds.RewardAction += OnRewardActionState;
-			
+
 			_cardLogic.SubscribeEvents();
 			_audioController = AudioController.Instance;
 			_settingsRef.StartCorner = _cardLogic.Orientation == HandOrientation.RIGHT ? TableLayoutGroup.Corner.UpperLeft : TableLayoutGroup.Corner.UpperRight;
@@ -146,6 +151,7 @@ namespace SimpleSolitaire.Controller
 		private void Start()
 		{
 			InitGameState();
+			//PlayerPrefs.DeleteAll();
 		}
 
 		/// <summary>
@@ -159,7 +165,7 @@ namespace SimpleSolitaire.Controller
 			}
 
 			var anim = window.GetComponent<Animator>();
-			
+
 			if (anim == null)
 			{
 				return;
@@ -172,7 +178,7 @@ namespace SimpleSolitaire.Controller
 
 			anim.SetTrigger(_appearTrigger);
 		}
-		
+
 		/// <summary>
 		/// Disappear window with animation.
 		/// </summary>
@@ -184,7 +190,7 @@ namespace SimpleSolitaire.Controller
 			}
 
 			var anim = window.GetComponent<Animator>();
-			
+
 			if (anim == null)
 			{
 				return;
@@ -207,14 +213,14 @@ namespace SimpleSolitaire.Controller
 			_tutorialLayer.SetActive(true);
 			AppearWindow(_tutorialLayer);
 		}
-		
+
 		/// <summary>
 		/// Hide tutorial layer with animation.
 		/// </summary>
 		public void HideTutorialLayer()
 		{
 			DisappearWindow(_tutorialLayer);
-			
+
 			StartCoroutine(InvokeAction(delegate
 			{
 				_tutorialLayer.SetActive(false);
@@ -249,7 +255,7 @@ namespace SimpleSolitaire.Controller
 		{
 			_bottomPanel.anchoredPosition = new Vector2(0, offset);
 		}
-		
+
 		public void OnNoAdsRewardedUser()
 		{
 			InitializeBottomPanel(0);
@@ -299,6 +305,19 @@ namespace SimpleSolitaire.Controller
 			_timeLabel.text = string.Format("{0,2}:{1,2}", min.ToString().PadLeft(2, '0'), sec.ToString().PadLeft(2, '0'));
 		}
 
+		private void SetBestTimeWinLabel(int seconds)
+		{
+			int sec = seconds % 60;
+			int min = (seconds % 3600) / 60;
+			_bestTimeToString = string.Format("{0,2}:{1,2}", min.ToString().PadLeft(2, '0'), sec.ToString().PadLeft(2, '0'));
+		}
+
+		IEnumerator debug(int sec)
+		{
+			yield return new WaitForSeconds(sec);
+			HasWinGame();
+		}
+
 		/// <summary>
 		/// Win game action.
 		/// </summary>
@@ -309,22 +328,34 @@ namespace SimpleSolitaire.Controller
 
 			StopGameTimer();
 			_congratManagerComponent.CongratulationTextFill();
+
+			//クリアタイムを保存
+			_clearTimeCount = _timeCount;
+			//クリアタイムとベストタイムを比較し、早い方を取得
+			_bestTimeCount = GetBestTimeCount();
+
+			//ベストタイムを整形
+			SetBestTimeWinLabel(_bestTimeCount);
+
 			var score = _scoreCount + Public.SCORE_NUMBER / _timeCount;
+
 			_timeWinLabel.text = "YOUR TIME: " + _timeLabel.text;
 			_scoreWinLabel.text = "YOUR SCORE: " + score;
 			_stepsWinLabel.text = "YOUR MOVES: " + _stepCount;
+			_bestTimeWinLabel.text = "BEST TIME: " + _bestTimeToString;
+
 
 			if (_audioController != null)
 			{
 				_audioController.Play(AudioController.AudioType.Win);
 			}
-			
+
 			SetBestValuesToPrefs(score);
 
 			AppearWindow(_winLayer);
 
 			StatisticsController statisticsController = StatisticsController.Instance;
-			
+
 			statisticsController.PlayedGamesTime?.Invoke(_timeCount);
 			statisticsController.AverageTime?.Invoke();
 			statisticsController.IncreaseScore?.Invoke(score);
@@ -332,7 +363,19 @@ namespace SimpleSolitaire.Controller
 			statisticsController.BestTime?.Invoke(_timeCount);
 			statisticsController.BestMoves?.Invoke(_stepCount);
 
-			//_interVideoAdsComponent.ShowInterstitial();
+		}
+
+		private int GetBestTimeCount()
+		{
+			int _currentBestTime = PlayerPrefs.GetInt("BestTimeCount");
+
+			if (_currentBestTime == 0 || _clearTimeCount <= _currentBestTime)
+			{
+				_currentBestTime = _clearTimeCount;
+				PlayerPrefs.SetInt("BestTimeCount", _currentBestTime);
+			}
+
+			return _currentBestTime;
 		}
 
 		/// <summary>
@@ -368,7 +411,7 @@ namespace SimpleSolitaire.Controller
 
 			_cardLogic.Shuffle(false);
 			_undoPerformComponent.ResetUndoStates();
-				StatisticsController.Instance.PlayedGames?.Invoke();
+			StatisticsController.Instance.PlayedGames?.Invoke();
 		}
 
 		/// <summary>
@@ -407,7 +450,7 @@ namespace SimpleSolitaire.Controller
 			_undoPerformComponent.LoadGame();
 
 			_cardLogic.OnNewGameStart();
-			
+
 			InitMenuView(true);
 		}
 
@@ -487,7 +530,7 @@ namespace SimpleSolitaire.Controller
 #endif
 			}
 		}
-		
+
 		#endregion
 
 		#region Ads Layer
@@ -548,7 +591,7 @@ namespace SimpleSolitaire.Controller
 			{
 				case RewardAdsType.GetUndo:
 					//_interVideoAdsComponent.ShowGetUndoAction();
-                    break;
+					break;
 				case RewardAdsType.NoAds:
 					//_interVideoAdsComponent.NoAdsAction();
 					break;
@@ -731,7 +774,7 @@ namespace SimpleSolitaire.Controller
 			DisappearWindow(_gameLayer);
 			StartCoroutine(InvokeAction(delegate { _gameLayer.SetActive(false); _cardLayer.SetActive(true); }, 0.42f));
 		}
-		#endregion		
+		#endregion
 
 		/// <summary>
 		/// Call action via time.
@@ -821,7 +864,7 @@ namespace SimpleSolitaire.Controller
 			_autoCompleteComponent.SetEnableAutoCompleteFeature(_autoCompleteEnable);
 			_autoCompleteSwitcher.UpdateSwitchImg(_autoCompleteEnable);
 		}
-		
+
 		public void OnClickHighlightDraggableSwitch()
 		{
 			_cardLogic.HighlightDraggable = !_cardLogic.HighlightDraggable;
@@ -861,7 +904,7 @@ namespace SimpleSolitaire.Controller
 				_timeCoroutine = null;
 			}
 		}
-		
+
 		public void OnApplicationFocus(bool state)
 		{
 			if (!_cardLogic.IsGameStarted)
@@ -869,7 +912,7 @@ namespace SimpleSolitaire.Controller
 				Debug.LogWarning($"Game does not started.");
 				return;
 			}
-			
+
 			if (!state)
 			{
 				_cardLogic.SaveGameState(isTempState: true);
