@@ -8,7 +8,7 @@ public class AdMobInterstitial : MonoBehaviour
 {
     [SerializeField] private GameObject _adsLayer;
     [SerializeField] private GameObject _cardLayer;
-  
+
     public void Start()
     {
         // Google Mobile Ads SDK を初期化します。
@@ -77,19 +77,26 @@ public class AdMobInterstitial : MonoBehaviour
     /// <summary>
     /// インタースティシャル広告を表示します。
     /// </summary>
-    public void ShowAd()
+    public void ShowAd(int mode)
     {
-        if (interstitialAd != null && interstitialAd.CanShowAd())
-        {
-            Debug.Log("Showing interstitial ad.");
-            interstitialAd.Show();
-
-            this.RegisterEventHandlers(interstitialAd);
-        }
-        else
+        if (interstitialAd == null || !interstitialAd.CanShowAd())
         {
             Debug.LogError("Interstitial ad is not ready yet.");
+            return;
         }
+
+        bool shouldShowAd = mode == 1 || CreateRandomValue() < 30;
+        if (shouldShowAd)
+        {
+            ShowInterstitialAd();
+        }
+    }
+
+    private void ShowInterstitialAd()
+    {
+        RegisterEventHandlers(interstitialAd);
+        interstitialAd.Show();
+        Debug.Log("Showing interstitial ad.");
     }
 
 
@@ -115,11 +122,13 @@ public class AdMobInterstitial : MonoBehaviour
         // 広告がフルスクリーン コンテンツを開いたときに発生します。
         ad.OnAdFullScreenContentOpened += () =>
         {
+            PauseGame();
             Debug.Log("Interstitial ad full screen content opened.");
         };
         // 広告がフルスクリーン コンテンツを閉じたときに発生します。
         ad.OnAdFullScreenContentClosed += () =>
         {
+            ResumeGame();
             _adsLayer.SetActive(false);
             _cardLayer.SetActive(true);
            
@@ -153,6 +162,24 @@ public class AdMobInterstitial : MonoBehaviour
             // できるだけ早く別の広告を表示できるように、広告を再読み込みしてください。
             LoadInterstitialAd();
         };
+    }
+
+    private int CreateRandomValue()
+    {
+        int v = UnityEngine.Random.Range(0, 100);
+        Debug.Log("random value: " + v);
+
+        return v;
+    }
+
+    private void PauseGame()
+    {
+        Time.timeScale = 0f;
+    }
+
+    private void ResumeGame()
+    {
+        Time.timeScale = 1f;
     }
 
 }
