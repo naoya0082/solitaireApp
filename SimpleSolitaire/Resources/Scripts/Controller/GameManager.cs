@@ -64,6 +64,12 @@ namespace SimpleSolitaire.Controller
 		private GameObject _continueLayer;
 		[SerializeField]
 		private GameObject _tutorialLayer;
+		[SerializeField]
+		private GameObject _rankingLayer;
+
+		[Header("Ranking:")]
+		[SerializeField]
+		private RankingUI _rankingUI;
 
 		[Header("Labels:")]
 		[SerializeField]
@@ -321,7 +327,7 @@ namespace SimpleSolitaire.Controller
 		/// <summary>
 		/// Win game action.
 		/// </summary>
-		public void HasWinGame()
+		public async void HasWinGame()
 		{
 			_cardLayer.SetActive(false);
 			_winLayer.SetActive(true);
@@ -352,6 +358,9 @@ namespace SimpleSolitaire.Controller
 
 			SetBestValuesToPrefs(score);
 
+			// UGS Leaderboard にクリアタイムを送信
+			await SubmitClearTimeToLeaderboard();
+
 			AppearWindow(_winLayer);
 
 			StatisticsController statisticsController = StatisticsController.Instance;
@@ -363,6 +372,25 @@ namespace SimpleSolitaire.Controller
 			statisticsController.BestTime?.Invoke(_timeCount);
 			statisticsController.BestMoves?.Invoke(_stepCount);
 
+		}
+
+		/// <summary>
+		/// クリアタイムをUGS Leaderboardに送信
+		/// </summary>
+		private async System.Threading.Tasks.Task SubmitClearTimeToLeaderboard()
+		{
+			if (LeaderboardManager.Instance != null && LeaderboardManager.Instance.IsInitialized)
+			{
+				var result = await LeaderboardManager.Instance.SubmitClearTime(_clearTimeCount);
+				if (result != null)
+				{
+					Debug.Log($"[GameManager] Weekly Ranking: {result.Rank + 1}位");
+				}
+			}
+			else
+			{
+				Debug.LogWarning("[GameManager] LeaderboardManager is not initialized.");
+			}
 		}
 
 		private int GetBestTimeCount()
@@ -727,6 +755,70 @@ namespace SimpleSolitaire.Controller
 				}
 
 				_statisticLayer.SetActive(false); OnClickSettingBtn();
+			}, 0.42f));
+		}
+		#endregion
+
+		#region Ranking Layer
+		/// <summary>
+		/// 設定画面からランキングボタンをクリック
+		/// </summary>
+		public void OnClickSettingLayerRankingBtn()
+		{
+			StartCoroutine(InvokeAction(delegate { OnClickSettingLayerCloseBtn(); Invoke(nameof(OnRankingAppearing), 0.42f); }, 0f));
+		}
+
+		/// <summary>
+		/// Win画面からランキングボタンをクリック
+		/// </summary>
+		public void OnClickWinLayerRankingBtn()
+		{
+			DisappearWindow(_winLayer);
+			StartCoroutine(InvokeAction(delegate
+			{
+				_winLayer.SetActive(false);
+				OnRankingAppearing();
+			}, 0.42f));
+		}
+
+		/// <summary>
+		/// ランキング画面を表示
+		/// </summary>
+		private void OnRankingAppearing()
+		{
+			_rankingLayer.SetActive(true);
+			AppearWindow(_rankingLayer);
+
+			// ランキングデータを読み込む
+			if (_rankingUI != null)
+			{
+				_rankingUI.LoadAndDisplayRankings();
+			}
+		}
+
+		/// <summary>
+		/// ランキング画面を閉じる（設定画面に戻る）
+		/// </summary>
+		public void OnClickRankingLayerCloseBtn()
+		{
+			DisappearWindow(_rankingLayer);
+			StartCoroutine(InvokeAction(delegate
+			{
+				_rankingLayer.SetActive(false);
+				OnClickSettingBtn();
+			}, 0.42f));
+		}
+
+		/// <summary>
+		/// ランキング画面を閉じる（カードレイヤーに戻る）
+		/// </summary>
+		public void OnClickRankingLayerBackToGameBtn()
+		{
+			DisappearWindow(_rankingLayer);
+			StartCoroutine(InvokeAction(delegate
+			{
+				_rankingLayer.SetActive(false);
+				_cardLayer.SetActive(true);
 			}, 0.42f));
 		}
 		#endregion
