@@ -168,7 +168,9 @@ namespace SimpleSolitaire.Controller
             catch (Exception e)
             {
                 // プレイヤーがまだランキングに登録されていない場合
-                if (e.Message.Contains("Entry not found") || e.Message.Contains("404"))
+                if (e.Message.Contains("Entry not found") ||
+                    e.Message.Contains("Leaderboard entry could not be found") ||
+                    e.Message.Contains("404"))
                 {
                     Debug.Log("[LeaderboardManager] Player has no score yet.");
                     return null;
